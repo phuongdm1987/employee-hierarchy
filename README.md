@@ -29,7 +29,7 @@ docker compose up -d
 
 ```bash
 docker compose exec app bash
-compose install
+composer install
 ```
 
 3. Setup & config project
