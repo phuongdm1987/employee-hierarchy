@@ -36,6 +36,7 @@ composer install
 
 ```bash
 cp .env.example .env
+docker compose exec app bash
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
@@ -44,6 +45,13 @@ php artisan db:seed
 4. Add virtual host
 
 - add `127.0.0.1 employee.test` to `/etc/hosts` file
+
+5. Run test
+
+```bash
+docker compose exec app bash
+php artisan test
+```
 
 ### Deployment with Docker
 
