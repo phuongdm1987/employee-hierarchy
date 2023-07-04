@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Models\Employee;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -9,19 +10,14 @@ use Illuminate\Support\Collection;
 abstract class AbstractRepository
 {
     abstract protected function getModel() : Model;
-    public function create(array $data)
+    public function create(array $data): Model
     {
         return $this->getModel()->create($data);
     }
 
-    public function firstOrCreate(array $attributes, array $values = [])
+    public function update(Employee $employee, array $data): bool
     {
-        return $this->getModel()->firstOrCreate($attributes, $values);
-    }
-
-    public function updateOrCreate(array $attributes, array $values = [])
-    {
-        return $this->getModel()->updateOrCreate($attributes, $values);
+        return $employee->update($data);
     }
 
     public function getAll(array $queryParams = []): Collection
@@ -32,7 +28,7 @@ abstract class AbstractRepository
         return $query->get();
     }
 
-    function getOne(array $queryParams = []) : ?Model
+    public function getOne(array $queryParams = []) : ?Model
     {
         $query = $this->getModel()->query();
         $this->buildQuery($query, $queryParams);

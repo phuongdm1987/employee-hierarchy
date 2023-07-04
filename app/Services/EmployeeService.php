@@ -2,39 +2,53 @@
 
 namespace App\Services;
 
+use App\Actions\GetEmployeeAction;
+use App\Actions\GetEmployeeHierarchyAction;
+use App\Actions\StoreEmployeeAction;
+use App\Actions\UpdateEmployeeAction;
 use App\Models\Employee;
-use App\Repositories\EmployeeRepositoryInterface;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class EmployeeService
 {
-    private $employeeRepository;
 
-    public function __construct(EmployeeRepositoryInterface $employeeRepository)
-    {
-        $this->employeeRepository = $employeeRepository;
+    public function __construct(
+        private GetEmployeeAction $getEmployeeAction,
+        private GetEmployeeHierarchyAction $getEmployeeHierarchyAction,
+        private StoreEmployeeAction $storeEmployeeAction,
+        private UpdateEmployeeAction $updateEmployeeAction,
+    ) {
     }
 
     public function findByName(string $name): ?Employee
     {
-        return $this->employeeRepository->getOne(['name' => $name]);
+        return $this->getEmployeeAction->execute(['name' => $name]);
+    }
+
+    public function createOrUpdate(array $data): Employee
+    {
+        $employee = $this->findByName(data_get($data, 'name'));
+
+        if ($employee) {
+            $this->updateEmployeeAction->execute($employee, $data);
+            return $employee;
+        }
+
+        return $this->storeEmployeeAction->execute($data);
     }
 
     public function createOrUpdateEmployees(array $employeesData)
     {
         DB::transaction(function () use ($employeesData) {
             collect($employeesData)->each(function ($employeeData) {
-                $supervisorName = Arr::get($employeeData, 'supervisor');
-                $supervisor = $this->employeeRepository->firstOrCreate(['name' => $supervisorName]);
-                $this->employeeRepository->updateOrCreate(
-                    [
-                        'name' => $employeeData['name'],
-                    ],
-                    [
-                        'supervisor_id' => $supervisor->id,
-                    ]
-                );
+                $supervisorName = data_get($employeeData, 'supervisor');
+                $supervisor = $this->createOrUpdate([
+                    'name' => $supervisorName
+                ]);
+                $this->createOrUpdate([
+                    'name' => $employeeData['name'],
+                    'supervisor_id' => $supervisor->id,
+                ]);
             });
         });
     }
@@ -42,46 +56,8 @@ class EmployeeService
     public function getHierarchy(?Employee $rootEmployee = null): array
     {
         $rootEmployee = $rootEmployee
-            ?: $this->employeeRepository->getOne(['supervisor_id' => null]);
+            ?: $this->getEmployeeAction->execute(['supervisor_id' => null]);
 
-        if (!$rootEmployee) {
-            return [];
-        }
-
-        $hierarchy = $this->buildHierarchy($rootEmployee);
-
-        return [$rootEmployee->name => $hierarchy];
-    }
-
-    public function getHierarchyByEmployee(
-        Employee $employee,
-        ?Employee $supervisor = null,
-        ?int $levels = null,
-        array &$hierarchy = []
-    ): array {
-        $hierarchy[$employee->name] = $hierarchy[$employee->name] ?? [];
-        $isNeedMoreEmployee = ($levels === null || $levels > 0) && $employee->supervisor;
-        $levels = $levels === null ? null : $levels - 1;
-
-        if (!$isNeedMoreEmployee) {
-            return $hierarchy;
-        }
-
-        $hierarchy[$supervisor->name] = $hierarchy;
-        unset($hierarchy[$employee->name]);
-        $this->getHierarchyByEmployee($supervisor, $supervisor->supervisor, $levels, $hierarchy);
-
-        return $hierarchy;
-    }
-
-    private function buildHierarchy($employee): array
-    {
-        $hierarchy = [];
-
-        foreach ($employee->subordinates as $subordinate) {
-            $hierarchy[$subordinate->name] = $this->buildHierarchy($subordinate);
-        }
-
-        return $hierarchy;
+        return !$rootEmployee ? [] : $this->getEmployeeHierarchyAction->execute($rootEmployee);
     }
 }
